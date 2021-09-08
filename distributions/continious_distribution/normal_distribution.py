@@ -499,7 +499,10 @@ def plot_distribution_graph(mean, std_deviation, input_string):
     ax.set_title('Normal Gaussian Curve')
 
     # plt.savefig('normal_curve.png', dpi=72, bbox_inches='tight')
-    plt.text(-3, 0.3, "Probability: \n" + str(probability), fontsize=22)
+    probability_text = input_string.replace(" ", "") + "\n" + str(probability)
+    plt.text(-3, 0.3, probability_text, fontsize=22)
+    input_text = "Mean: " + str(mean) + "\n" + "Std Deviation: " + str(std_deviation)
+    plt.text(2, 0.3, input_text, fontsize=22)
 
     plt.show()
     return
@@ -507,11 +510,11 @@ def plot_distribution_graph(mean, std_deviation, input_string):
 
 '''##################################################################################'''
 if __name__ == '__main__':
-    mean = 50000
-    std_deviation = 20000
+    mean = 30
+    std_deviation = 4
     lower_x = None
     upper_x = None
-    input_string = "X > 70000"
+    input_string = "21 < X < 40"
     test = probability_normal_distribution_string(mean, std_deviation, input_string)
     print(test)
     # result = probability_normal_distribution(mean, std_deviation, lower_x, upper_x)

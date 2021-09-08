@@ -1,0 +1,5 @@
+###### Requirements without Version Specifiers ######`
+scipy.stats
+matplotlib.pyplot
+pandas
+
