@@ -13,30 +13,31 @@ from scipy.stats import norm
 import matplotlib.pyplot as plt
 import numpy as np
 import logging
-from datetime import datetime, date
+import sys
+
 import re
 
 # Custom Functions
-from common_functions import check_and_convert_number
+from common_functions import check_and_convert_number, get_logger_file_name
 
 # Error Codes
 mean_std_deviation_missing_error = "MEAN or STANDARD_DEVIATION is missing"
 x_value_missing_error = "Didn't Provide Lower and Upper values of X"
 input_error = "Not a Proper Input string to find the probability"
-comparator_pattern= "\<\=|\>\=|\<|\>|="
+empty_probability_list_error = "Couldn't find Probablity List"
+unknown_run_time_error = "Unknown Run Time Error"
 
-# calculate time and date for logger file
-time = datetime.now()
-date = date.today()
-current_time = time.strftime("%H_%M_%S")
-date = date.strftime("%d_%m_%Y")
-logger_run_time = date + "_" + current_time
-logger_file_name = "logger_file_" + logger_run_time + ".log"
+# pattern used for regex
+comparator_pattern= "\<\=|\>\=|\<|\>|="
+greater_than_pattern = "\<\=X|\<X|X\>\=|X\>"
+
+logger_file_name = get_logger_file_name(sys.argv[0])
+if not logger_file_name:
+    logger_file_name = "temp_file_logger.log"
 
 logging.basicConfig(filename = logger_file_name,
                     format =' %(asctime)s %(message)s',
                     filemode = 'w')
-
 
 # Creating an object
 logger = logging.getLogger()
@@ -51,8 +52,8 @@ def validate_input(input_list):
     logger.info(f"Running in validate_inputs and anaylising input {input_list}")
     logger.info("*********************************************")
     if not input_list:
-        logger.error("Couldn't find Probablity List")
-        return
+        logger.error(empty_probability_list_error)
+        return None, empty_probability_list_error
 
     # Main Condition
 
@@ -115,8 +116,32 @@ def validate_input(input_list):
 
 '''##################################################################################'''
 
+def get_value_from_string(probability_string):
+    try:
+        probability_string = probability_string.upper()
+        value = re.sub(comparator_pattern, "", probability_string.replace(" ", "").replace("X", ""))
+        if check_and_convert_number(value, False):
+            value = check_and_convert_number(value, True)
+            return value
+        else:
+            return None
+    except:
+        return unknown_run_time_error
 
-def test_func(mean, std_deviation, bound_list, prob_not_happen = False):
+'''##################################################################################'''
+
+def is_x_greater(x_string):
+    try:
+        if re.search(greater_than_pattern, x_string.replace(" ", "")):
+            return True
+        else:
+            return False
+    except:
+        return unknown_run_time_error
+
+'''##################################################################################'''
+
+def probability_helper(mean, std_deviation, bound_list, prob_not_happen = False):
 
     '''
 
@@ -129,37 +154,49 @@ def test_func(mean, std_deviation, bound_list, prob_not_happen = False):
     '''
 
     logger.info("*********************************************")
-    logger.info(f"Running in test_func and processing for the z_value of the given /"
+    logger.info(f"Running in probability_helper and processing for the z_value of the given /"
                 f"probability conditions of  {bound_list}")
     logger.info("*********************************************")
 
     # using this pattern to find if X > a,
     # in such case we have to subrtact 1 from the final probability
-    greater_than_pattern = "\<\=X|\<X|X\>\=|X\>"
+
     z_value_result = []
-
     for bound_value in bound_list:
-        value = re.sub(comparator_pattern, "", bound_value.replace(" ", "").replace("X", ""))
-        if check_and_convert_number(value, False):
-            value = check_and_convert_number(value, True)
-        else:
-            logger.error(f"{input_error} with the given input : {value}")
-            return input_error
+        value = get_value_from_string(bound_value)
 
+        if not value:
+            logger.error(f"{input_error} in the function")
+            return None, input_error
         # calculating the z_value by using the scipy function.
         z_value = norm(mean, std_deviation).cdf(value)
 
         # this logic is for, if the given inputs is X > a, we have to subtract 1
-        if re.search(greater_than_pattern, bound_value.replace(" ", "")):
-            z_value = 1 - z_value
+        if is_x_greater(bound_value) == unknown_run_time_error:
+            return None, unknown_run_time_error
+        if is_x_greater(bound_value) == True:
+            if len(bound_list) == 1:
+                z_value = 1 - z_value
         z_value_result.append(z_value)
 
     if len(z_value_result) == 2:
         if prob_not_happen: # return the prob with 1 - prob if it is probability of not happening
-            return 1 - abs(z_value_result[-1] - z_value_result[0])
-        return abs(z_value_result[-1] - z_value_result[0]) # return difference of the probability
-    return z_value_result[0] # return the z_value which is stored in the list
+            return 1 - abs(z_value_result[-1] - z_value_result[0]), None
+        return abs(z_value_result[-1] - z_value_result[0]), None # return difference of the probability
+    return z_value_result[0], None # return the z_value which is stored in the list
 
+
+'''##################################################################################'''
+
+def split_probability_string(input_string):
+    try:
+        prob_to_find = []
+        x_position = re.search('X|x', input_string)
+        prob_to_find.append(input_string[:x_position.end()].replace(" ", "").strip())
+        prob_to_find.append(input_string[x_position.start():].replace(" ", "").strip())
+        return prob_to_find
+    except:
+        return None
 
 '''##################################################################################'''
 
@@ -201,27 +238,43 @@ def probability_normal_distribution_string(mean, std_deviation, input_string):
     prob_to_find = []
 
     if len(comparator_lists) == 2:
-        x_position = re.search('X|x', input_string)
-        prob_to_find.append(input_string[:x_position.end()].replace(" ", "").strip())
-        prob_to_find.append(input_string[x_position.start():].replace(" ", "").strip())
+        prob_to_find = split_probability_string(input_string)
+        if not prob_to_find:
+            logger.error("getting error !! ")
+            logger.error(f"{unknown_run_time_error} in the function")
+            return unknown_run_time_error
         prob_to_find, prob_not_happen = validate_input(prob_to_find)
 
+        if not prob_to_find:
+            logger.error("getting error !! ")
+            logger.error(f"{prob_not_happen} in the function")
+            return prob_not_happen
+
         if prob_to_find:
-            probablity = test_func(mean, std_deviation, prob_to_find, prob_not_happen)
+            probablity, err = probability_helper(mean, std_deviation, prob_to_find, prob_not_happen)
+            if err:
+                logger.error("getting error !! ")
+                logger.error(f"{err} in the function")
+                return err
+
         logger.info("---------------------------------------------")
         logger.info(f"Probability for the condition {input_string}, with the mean "
-                    f"{mean} and std_deviation as {std_deviation} is : {probablity} ")
+                    f"{mean} and std_deviation as {std_deviation} is : {round(probablity, 5)} ")
         logger.info("---------------------------------------------")
-        return probablity
+        return round(probablity, 5)
 
     if len(comparator_lists) == 1:
         prob_to_find.append(input_string.replace(" ", "").strip())
-        probablity = test_func(mean, std_deviation, prob_to_find, False)
+        probablity, err = probability_helper(mean, std_deviation, prob_to_find, False)
+        if err:
+            logger.error("getting error !! ")
+            logger.error(f"{err} in the function")
+            return err
         logger.info("---------------------------------------------")
         logger.info(f"Probability for the condition {input_string}, with the mean "
-                    f"{mean} and std_deviation as {std_deviation} is : {probablity} ")
+                    f"{mean} and std_deviation as {std_deviation} is : {round(probablity, 5)} ")
         logger.info("---------------------------------------------")
-        return probablity
+        return round(probablity, 5)
 
 
 '''##################################################################################'''
@@ -259,25 +312,209 @@ def probability_normal_distribution(mean, std_deviation, lower_x = None, upper_x
 
 '''##################################################################################'''
 
-def plot_std_normal_distribution():
-    mean = 0
-    std_deviation = 1
-    x = np.linspace(mean - 3 * std_deviation, mean + 3 * std_deviation, 100)
-    plt.plot(x, norm.pdf(x, mean, std_deviation), color='black')
-    # plt.fill_between([1], [1])
-    plt.show()
+def generate_standard_score(mean, std_deviation, value):
+    logger.info("*********************************************")
+    logger.info(f"Running in generate_standard_score"
+                f" to find the standard_score or z-score of/"
+                f" {value}")
+    logger.info("*********************************************")
+
+    if not value:
+        return None
+
+    if not input_string:
+        logger.error(f"{input_error} in the function")
+        return None, input_error
+
+    if not mean or not std_deviation:
+        logger.error(f"{mean_std_deviation_missing_error} in the function")
+        return None, mean_std_deviation_missing_error
+
+    if not re.search(comparator_pattern, input_string.replace(" ", "")):
+        logger.error(f"{input_error} in the function")
+        return None, input_error
+
+    try:
+        z_score = (value - mean)/std_deviation
+        return z_score, None
+    except:
+        return None, unknown_run_time_error
 
 '''##################################################################################'''
 
+def plot_distribution_graph_helper(mean, std_deviation, input_string, comparator_lists):
+
+    try:
+        prob_to_find = []
+
+        if len(comparator_lists) == 2:
+            prob_to_find = split_probability_string(input_string)
+            if not prob_to_find:
+                logger.error("getting error !! ")
+                logger.error(f"{unknown_run_time_error} in the function")
+                return unknown_run_time_error
+            prob_to_find, prob_not_happen = validate_input(prob_to_find)
+
+            if not prob_to_find:
+                logger.error("getting error !! ")
+                logger.error(f"{prob_not_happen} in the function")
+                return prob_not_happen
+
+        if len(comparator_lists) == 1:
+            prob_to_find.append(input_string.replace(" ", "").strip())
+            if is_x_greater(input_string) == unknown_run_time_error:
+                return None, unknown_run_time_error
+            if is_x_greater(input_string) == True:
+                prob_not_happen = True
+            else:
+                prob_not_happen = False
+
+
+        value_list = []
+        standard_score_list = []
+        if prob_to_find:
+            for prob in prob_to_find:
+                value = get_value_from_string(prob)
+                if not value:
+                    logger.error(f"{input_error} in the function")
+                    return None, input_error
+                if value == unknown_run_time_error:
+                    return unknown_run_time_error
+
+                value_list.append(value)
+                standard_score, err = generate_standard_score(mean, std_deviation, value)
+                if err:
+                    return err
+
+                if is_x_greater(prob) == unknown_run_time_error:
+                    return None, unknown_run_time_error
+                if is_x_greater(prob) == True:
+                    standard_score_list.append((standard_score, True, prob_not_happen))
+                else:
+                    standard_score_list.append((standard_score, False, prob_not_happen))
+
+        if len(standard_score_list) == 1:
+            standard_score_list.append((None, False, False))
+
+        return standard_score_list
+    except:
+        return unknown_run_time_error
+
+'''##################################################################################'''
+def plot_distribution_graph(mean, std_deviation, input_string):
+    '''
+
+        :param mean:
+        :param std_deviation:
+        :param input_string:
+        :return:
+        '''
+
+    logger.info("*********************************************")
+    logger.info(f"Running in plot_distribution_graph"
+                f"to plot the distribution graph /"
+                f" {input_string}")
+    logger.info("*********************************************")
+
+    # Edge case/Corner Cases to validate the inputs
+    if not input_string:
+        logger.error(f"{input_error} in the function")
+        return input_error
+
+    if not mean or not std_deviation:
+        logger.error(f"{mean_std_deviation_missing_error} in the function")
+        return mean_std_deviation_missing_error
+
+    if not re.search(comparator_pattern, input_string.replace(" ", "")):
+        logger.error(f"{input_error} in the function")
+        return input_error
+
+    # get all the comparators are feed in the given input string.
+    # if there are more than 2 comparators that are invalid and throwing an error
+    comparator_lists = re.findall(comparator_pattern, input_string)
+
+    if len(comparator_lists) > 2:
+        logger.error(f"{input_error} in the function")
+        return input_error
+
+    standard_score_list = plot_distribution_graph_helper(mean, std_deviation, input_string, comparator_lists)
+
+    if standard_score_list == unknown_run_time_error:
+        return unknown_run_time_error
+
+    probability = probability_normal_distribution_string(mean, std_deviation, input_string)
+    prob_x_start_range = standard_score_list[0][0]
+    prob_x_end_range = standard_score_list[1][0]
+
+    second_fill_flag = False
+    if standard_score_list[0][2] == True and \
+            standard_score_list[1][2] == True:
+        second_fill_flag = True
+
+        if standard_score_list[0][1] == False:
+            prob_x_start_range = -4
+            prob_x_end_range = standard_score_list[0][0]
+        else:
+            prob_x_start_range = standard_score_list[0][0]
+            prob_x_end_range = 4
+
+        if standard_score_list[1][1] == False:
+            prob_x1_start_range = -4
+            prob_x1_end_range = standard_score_list[1][0]
+        else:
+            prob_x1_start_range = standard_score_list[1][0]
+            prob_x1_end_range = 4
+
+    if prob_x_end_range == None:
+        prob_not_happen = standard_score_list[0][2]
+        if not prob_not_happen:
+            prob_x_end_range = prob_x_start_range
+            prob_x_start_range = -4
+        else:
+            prob_x_end_range = 4
+
+    probability_x_axis = np.arange(prob_x_start_range, prob_x_end_range, 0.001)
+    probability_y_axis = norm.pdf(probability_x_axis, 0, 1)
+
+    if second_fill_flag:
+        probability_x1_axis = np.arange(prob_x1_start_range, prob_x1_end_range, 0.001)
+        probability_y1_axis = norm.pdf(probability_x1_axis, 0, 1)
+
+    whole_x_axis = np.arange(-10, 10, 0.001)
+    whole_y_axis = norm.pdf(whole_x_axis, 0, 1)
+
+    fig, ax = plt.subplots(figsize=(9, 6))
+    plt.style.use('fivethirtyeight')
+    ax.plot(whole_x_axis, whole_y_axis)
+
+    ax.fill_between(probability_x_axis, probability_y_axis, 0, alpha=0.3, color='red')
+    ax.fill_between(whole_x_axis, whole_y_axis, 0, alpha=0.1, color="w")
+
+    if second_fill_flag:
+        ax.fill_between(probability_x1_axis, probability_y1_axis, 0, alpha=0.3, color='red')
+        second_fill_flag = False
+
+    ax.set_xlim([-4, 4])
+    ax.set_xlabel('# of Standard Deviations Outside the Mean')
+    ax.set_title('Normal Gaussian Curve')
+
+    # plt.savefig('normal_curve.png', dpi=72, bbox_inches='tight')
+    plt.text(-3, 0.3, "Probability: \n" + str(probability), fontsize=22)
+
+    plt.show()
+    return
+
+
+'''##################################################################################'''
 if __name__ == '__main__':
-    mean = 30
-    std_deviation = 4
-    lower_x = 30
-    upper_x = 35
-    input_string = "30 < X < 35"
+    mean = 50000
+    std_deviation = 20000
+    lower_x = None
+    upper_x = None
+    input_string = "X > 70000"
     test = probability_normal_distribution_string(mean, std_deviation, input_string)
     print(test)
-    result = probability_normal_distribution(mean, std_deviation, lower_x, upper_x)
-    print(result)
-    # print(norm(mean, std_deviation).sf(0.394350226))
-    # plot_std_normal_distribution()v
+    # result = probability_normal_distribution(mean, std_deviation, lower_x, upper_x)
+    # print(result)
+    print(test)
+    plot_distribution_graph(mean, std_deviation, input_string)
