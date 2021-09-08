@@ -85,7 +85,7 @@ Clone the repo
 
 ## Usage
 
-There are difference function which can get the inputs from user
+There are different function which can get the inputs from user
 and give the probability distribution of the required distribution 
 method
 
