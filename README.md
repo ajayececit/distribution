@@ -27,7 +27,7 @@ outcomes of a variable.
 
 To understand the working of the Distributions in the statistics and learning stats
 
-###Repo Contains:
+### Repo Contains:
 * [Continuous Distribution](#continuous-distribution)
     - [x] Normal Distribution
     - [ ] Exponential Distribution [# ToDo]
