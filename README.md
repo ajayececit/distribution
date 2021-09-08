@@ -113,7 +113,7 @@ where,
 Once we get the Standard Score we can have a look in the [z-table](images/z_table.pdf) 
 and find the final Probability
 
-#### Functions Which help calculate the probability
+#### [Functions](https://github.com/ajayececit/distribution/blob/main/distributions/continious_distribution/normal_distribution.py) Which help calculate the probability
 ```sh
 1) probability_normal_distribution_string(mean, std_deviation, input_string)
 2) probability_normal_distribution(mean, std_deviation, lower_x, upper_x)
